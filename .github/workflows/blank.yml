@@ -85,8 +85,8 @@ jobs:
         with:
           server_address: smtp.gmail.com  # SMTP server for Gmail
           server_port: 587  # Port for Gmail SMTP
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
+          username: ${{ secrets.SMTP_USERNAME }}  # Your email address
+          password: ${{ secrets.SMTP_PASSWORD }}  # Your App Password (not your regular Gmail password)
           subject: "Trivy Vulnerability Scan Report"
           body: "Please find the attached Trivy vulnerability scan report for the Docker image."
           to: ${{ secrets.RECIPIENT_EMAIL }}
