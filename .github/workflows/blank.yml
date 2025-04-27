@@ -90,9 +90,9 @@ jobs:
       - name: Install SonarScanner
         run: |
           curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
-          unzip /tmp/sonar-scanner.zip -d /tmp
-          mv /tmp/sonar-scanner-4.8.0.2856-linux /usr/local/sonar-scanner
-          echo 'export PATH=$PATH:/usr/local/sonar-scanner/bin' >> $GITHUB_ENV
+          unzip /tmp/sonar-scanner.zip -d $HOME
+          mv $HOME/sonar-scanner-4.8.0.2856-linux $HOME/sonar-scanner
+          echo "$HOME/sonar-scanner/bin" >> $GITHUB_PATH
 
       - name: Run SonarScanner with Debug Logging
         env:
