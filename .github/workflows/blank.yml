@@ -82,11 +82,17 @@ jobs:
 
       - name: Commit Trivy report to GitHub
         run: |
+          # Set git user config
           git config --global user.name "sid-rabhi"
           git config --global user.email "sid.rabhi.it@gmail.com"
+          
+          # Add the Trivy report to the repository
           git add trivy-report.json
           git commit -m "Add Trivy report"
-          git push
+          
+          # Push the commit to the repository using the GitHub token
+          git remote set-url origin https://github.com/${{ github.repository }}.git
+          git push https://x-access-token:${{ secrets.GHCR_TOKEN }}@github.com/${{ github.repository }} HEAD:main
 
   release-image:
     runs-on: ubuntu-latest
