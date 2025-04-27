@@ -12,8 +12,6 @@ env:
   APP_NAME: staticwebsite
   APP_CONTAINER_PORT: 80
   APP_EXPOSED_PORT: 80
-  SONAR_HOST_URL: "http://<your-ec2-public-ip>:9000"  # Update with your EC2 IP
-  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
 jobs:
   build-image:
@@ -78,6 +76,8 @@ jobs:
     needs: trivy-scan
     steps:
       - name: Test connection to SonarQube
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           curl -v $SONAR_HOST_URL
 
@@ -87,6 +87,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run SonarScanner with Debug Logging
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           sonar-scanner \
             -Dsonar.host.url=$SONAR_HOST_URL \
