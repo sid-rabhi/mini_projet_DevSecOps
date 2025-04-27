@@ -104,7 +104,9 @@ jobs:
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17*/x64  # Ensure Java 17 is used
         run: |
+          export PATH=$JAVA_HOME/bin:$PATH  # Update PATH to use Java 17
           sonar-scanner \
             -Dsonar.host.url=$SONAR_HOST_URL \
             -Dsonar.login=$SONAR_TOKEN \
