@@ -61,34 +61,54 @@ jobs:
         run: |
           docker load < staticwebsite.tar
           trivy image --exit-code 1 --severity HIGH,CRITICAL --format json -o trivy-report.json $APP_NAME || echo "Trivy scan completed with vulnerabilities"
-        continue-on-error: true  # Allow the pipeline to continue even if Trivy exits with code 1
+        continue-on-error: true
 
-      - name: Upload Trivy Report as Artifact
+      - name: Upload Trivy Report
         uses: actions/upload-artifact@v4
         with:
           name: trivy-report
           path: trivy-report.json
 
-  send-email-report:
+  sonarqube-scan:
     runs-on: ubuntu-latest
     needs: trivy-scan
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Trivy Report
-        uses: actions/download-artifact@v4
+      - name: Set up Java
+        uses: actions/setup-java@v3
         with:
-          name: trivy-report
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Send Email with Trivy Report
-        uses: dawidd6/action-send-mail@v3
+      - name: Run SonarQube Scanner
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          echo "Downloading SonarScanner..."
+          curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+          unzip sonar-scanner.zip
+          ./sonar-scanner-*/bin/sonar-scanner \
+            -Dsonar.projectKey=staticwebsite \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.login=${SONAR_TOKEN}
+
+  release-image:
+    runs-on: ubuntu-latest
+    needs: sonarqube-scan
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          server_address: smtp.gmail.com  # SMTP server for Gmail
-          server_port: 587  # Port for Gmail SMTP
-          username: ${{ secrets.SMTP_USERNAME }}  # Your email address
-          password: ${{ secrets.SMTP_PASSWORD }}  # Your App Password (not your regular Gmail password)
-          subject: "Trivy Vulnerability Scan Report"
-          body: "Please find the attached Trivy vulnerability scan report for the Docker image."
-          to: ${{ secrets.RECIPIENT_EMAIL }}
-          from: ${{ secrets.SMTP_USERNAME }}
-          attachments: trivy-report.json
+          name: staticwebsite-tar
+
+      - name: Log in to GitHub Container Registry
+        run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Tag and Push Docker image
+        run: |
+          docker load < staticwebsite.tar
+          REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker tag $APP_NAME ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
+          docker push ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
