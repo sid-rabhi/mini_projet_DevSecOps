@@ -49,10 +49,12 @@ jobs:
         with:
           name: app-tar
 
+      - name: Log in to GitHub Container Registry
+        run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - name: Tag and Push Docker image
         run: |
           docker load < staticwebsite.tar
           REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           docker tag $APP_NAME ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker push ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
