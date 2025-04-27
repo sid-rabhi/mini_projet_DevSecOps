@@ -87,30 +87,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Install SonarScanner
+      - name: Run SonarScanner in Docker
         run: |
-          curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
-          unzip /tmp/sonar-scanner.zip -d $HOME
-          mv $HOME/sonar-scanner-4.8.0.2856-linux $HOME/sonar-scanner
-          echo "$HOME/sonar-scanner/bin" >> $GITHUB_PATH
-
-      - name: Run SonarScanner with Debug Logging
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17*/x64
-          PATH: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17*/x64/bin:$PATH
-        run: |
-          sonar-scanner \
-            -Dsonar.host.url=$SONAR_HOST_URL \
-            -Dsonar.login=$SONAR_TOKEN \
-            -X  # Enable debug logging
+          docker run --rm \
+            -v $(pwd):/usr/src \
+            -w /usr/src \
+            openjdk:17-jdk \
+            bash -c "
+              curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip &&
+              unzip /tmp/sonar-scanner.zip -d /tmp &&
+              mv /tmp/sonar-scanner-4.8.0.2856-linux /tmp/sonar-scanner &&
+              export PATH=/tmp/sonar-scanner/bin:\$PATH &&
+              sonar-scanner \
+                -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+                -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+                -X
+            "
 
   release-image:
     runs-on: ubuntu-latest
