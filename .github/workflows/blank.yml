@@ -85,10 +85,7 @@ jobs:
           sudo apt-get install -y openjdk-17-jdk
           java -version
 
-      # Debug: Print SONAR_HOST_URL to verify it's correctly passed
-      - name: Debug SONAR_HOST_URL
-        run: echo "SONAR_HOST_URL is: $SONAR_HOST_URL"
-
+  
       # Run SonarQube analysis using the SonarCloud GitHub action
       - name: SonarQube Scan
         uses: SonarSource/sonarcloud-github-action@v2
