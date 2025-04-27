@@ -26,8 +26,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: app-tar
-          path: $APP_NAME.tar
+          name: staticwebsite-tar  # Name of the artifact must match
+          path: staticwebsite.tar  # Ensure this matches the uploaded tar name
 
   acceptance-test:
     runs-on: ubuntu-latest
@@ -35,12 +35,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: app-tar
+          name: staticwebsite-tar  # Ensure this matches the uploaded artifact name
 
       - name: Load Docker image and run container
         run: |
           # Load Docker image from tar file
-          docker load < $APP_NAME.tar
+          docker load < staticwebsite.tar
           # Run the Docker container
           docker run -d -p $APP_EXPOSED_PORT:$APP_CONTAINER_PORT --env PORT=$APP_CONTAINER_PORT --name webapp $APP_NAME
           # Wait for the container to start
@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: app-tar
+          name: staticwebsite-tar  # Ensure this matches the uploaded artifact name
 
       - name: Install Trivy
         run: |
@@ -63,7 +63,7 @@ jobs:
       - name: Scan Docker image with Trivy
         run: |
           # Load Docker image from tar file
-          docker load < $APP_NAME.tar
+          docker load < staticwebsite.tar
           # Run Trivy scan (exit code 1 for high/critical vulnerabilities)
           trivy image --exit-code 1 --severity HIGH,CRITICAL --format json -o trivy-report.json $APP_NAME
         continue-on-error: false  # This will cause the job to fail if high/critical vulnerabilities are found
@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: app-tar
+          name: staticwebsite-tar  # Ensure this matches the uploaded artifact name
 
       - name: Log in to GitHub Container Registry
         run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -88,7 +88,7 @@ jobs:
       - name: Tag and Push Docker image
         run: |
           # Load Docker image from tar file
-          docker load < $APP_NAME.tar
+          docker load < staticwebsite.tar
           # Tag the Docker image for GitHub Container Registry
           REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           docker tag $APP_NAME ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
