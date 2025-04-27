@@ -56,7 +56,7 @@ jobs:
 
           # Retry logic for downloading Trivy tarball
           for i in {1..5}; do
-            curl -sfL -o /tmp/trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.45.0/trivy_0.45.0_Linux-x86_64.tar.gz && break
+            curl -sfL -o /tmp/trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.45.0/trivy_0.45.0_Linux-64bit.tar.gz && break
             echo "Retrying download... attempt $i"
             sleep 10
           done
