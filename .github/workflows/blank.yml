@@ -10,11 +10,9 @@ env:
   APP_NAME: staticwebsite
   APP_CONTAINER_PORT: 80
   APP_EXPOSED_PORT: 80
-  SONAR_PROJECT_KEY: your-sonar-project-key
-  SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
 jobs:
+  # Step 1: Build Docker Image
   build-image:
     runs-on: ubuntu-latest
     steps:
@@ -30,6 +28,7 @@ jobs:
           name: staticwebsite-tar
           path: staticwebsite.tar
 
+  # Step 2: Acceptance Test
   acceptance-test:
     runs-on: ubuntu-latest
     needs: build-image
@@ -45,6 +44,7 @@ jobs:
           sleep 5
           curl http://localhost:$APP_CONTAINER_PORT | grep -i "Dimension"
 
+  # Step 3: Trivy Scan
   trivy-scan:
     runs-on: ubuntu-latest
     needs: acceptance-test
@@ -72,33 +72,39 @@ jobs:
           name: trivy-report
           path: trivy-report.json
 
+  # Step 4: SonarQube Analysis
   sonarqube-analysis:
     runs-on: ubuntu-latest
     needs: trivy-scan
     steps:
       - uses: actions/checkout@v4
 
-      # Install Java 17
-      - name: Install OpenJDK 17
+      - name: Install Java 17
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jdk
           java -version
 
-      # Run SonarQube analysis using the SonarCloud GitHub action
-      - name: SonarQube Scan
-        uses: SonarSource/sonarcloud-github-action@v2
-        with:
-          args: >
-            -Dsonar.projectKey=$SONAR_PROJECT_KEY
-            -Dsonar.sources=.
-            -Dsonar.host.url=$SONAR_HOST_URL
+      # Debug: Print SONAR_HOST_URL to verify it's correctly passed
+      - name: Debug SONAR_HOST_URL
+        run: echo "SONAR_HOST_URL is: $SONAR_HOST_URL"
+
+      - name: Run SonarQube Scan
+        run: |
+          echo "Running SonarQube analysis..."
+          sonar-scanner \
+            -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            -Dsonar.login=$SONAR_TOKEN
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
+  # Step 5: Release Image to GitHub Container Registry
   release-image:
     runs-on: ubuntu-latest
-    needs: trivy-scan
+    needs: sonarqube-analysis
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -113,27 +119,3 @@ jobs:
           REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           docker tag $APP_NAME ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
           docker push ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
-
-  send-email-report:
-    runs-on: ubuntu-latest
-    needs: release-image
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download Trivy Report
-        uses: actions/download-artifact@v4
-        with:
-          name: trivy-report
-
-      - name: Send Email with Trivy Report
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_SERVER }}  
-          server_port: ${{ secrets.SMTP_PORT }}  
-          username: ${{ secrets.SMTP_USERNAME }}  
-          password: ${{ secrets.SMTP_PASSWORD }}  
-          subject: "Trivy Vulnerability Scan Report"
-          body: "Please find the attached Trivy vulnerability scan report for the Docker image."
-          to: ${{ secrets.RECIPIENT_EMAIL }}
-          from: ${{ secrets.SMTP_USERNAME }}
-          attachments: trivy-report.json
