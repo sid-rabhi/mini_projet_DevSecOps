@@ -15,10 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Build Docker image
         run: |
           docker build -t $APP_NAME .
           docker save $APP_NAME > $APP_NAME.tar
+
       - uses: actions/upload-artifact@v4
         with:
           name: app-tar
@@ -31,6 +33,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: app-tar
+
       - name: Load and Run Docker image
         run: |
           docker load < staticwebsite.tar
@@ -45,9 +48,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: app-tar
-      - name: Push image to GitHub Container Registry (example)
+
+      - name: Tag and Push Docker image
         run: |
           docker load < staticwebsite.tar
-          docker tag $APP_NAME ghcr.io/${{ github.repository }}:$GITHUB_SHA
+          REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker tag $APP_NAME ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push ghcr.io/${{ github.repository }}:$GITHUB_SHA
+          docker push ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
