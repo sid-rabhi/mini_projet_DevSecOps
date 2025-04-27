@@ -92,7 +92,7 @@ jobs:
           
           # Push the commit to the repository using the GitHub token
           git remote set-url origin https://github.com/${{ github.repository }}.git
-          git push https://x-access-token:${{ secrets.GHCR_TOKEN }}@github.com/${{ github.repository }} HEAD:main
+          git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }} HEAD:main
 
   release-image:
     runs-on: ubuntu-latest
