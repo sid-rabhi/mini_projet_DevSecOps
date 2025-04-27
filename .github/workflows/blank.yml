@@ -53,15 +53,21 @@ jobs:
       - name: Install Trivy
         run: |
           # Download Trivy and ensure it's downloaded properly
-          curl -LO https://github.com/aquasecurity/trivy/releases/download/v0.26.0/trivy_0.26.0_Linux-x86_64.tar.gz
-          
-          # Retry the download if it fails
-          for i in {1..3}; do curl -sfL https://github.com/aquasecurity/trivy/releases/download/v0.26.0/trivy_0.26.0_Linux-x86_64.tar.gz -o /tmp/trivy.tar.gz && break || sleep 5; done
+          echo "Downloading Trivy..."
+          curl -sfL -o /tmp/trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.26.0/trivy_0.26.0_Linux-x86_64.tar.gz
+
+          # Verify if the file was downloaded successfully
+          if [ ! -f /tmp/trivy.tar.gz ]; then
+            echo "Error: Trivy tarball was not downloaded correctly."
+            exit 1
+          fi
 
           # Extract the file
+          echo "Extracting Trivy..."
           tar xz -C /usr/local/bin -f /tmp/trivy.tar.gz
 
           # Verify installation
+          echo "Verifying Trivy installation..."
           trivy --version
 
       - name: Scan Docker image with Trivy
