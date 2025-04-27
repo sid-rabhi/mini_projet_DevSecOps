@@ -93,7 +93,7 @@ jobs:
       - name: SonarQube Scan
         uses: SonarSource/sonarcloud-github-action@v2
         with:
-          args: >
+          args: |
             -Dsonar.projectKey=$SONAR_PROJECT_KEY
             -Dsonar.sources=.
             -Dsonar.host.url=$SONAR_HOST_URL
