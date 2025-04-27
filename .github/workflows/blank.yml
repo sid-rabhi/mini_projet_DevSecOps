@@ -69,7 +69,7 @@ jobs:
           name: trivy-report
           path: trivy-report.json
 
-  commit-trivy-report:
+  send-email-report:
     runs-on: ubuntu-latest
     needs: trivy-scan
     steps:
@@ -80,34 +80,15 @@ jobs:
         with:
           name: trivy-report
 
-      - name: Commit Trivy report to GitHub
-        run: |
-          # Set git user config
-          git config --global user.name "sid-rabhi"
-          git config --global user.email "sid.rabhi.it@gmail.com"
-          
-          # Add the Trivy report to the repository
-          git add trivy-report.json
-          git commit -m "Add Trivy report"
-          
-          # Push the commit to the repository using the GitHub token
-          git remote set-url origin https://github.com/${{ github.repository }}.git
-          git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }} HEAD:main
-
-  release-image:
-    runs-on: ubuntu-latest
-    needs: commit-trivy-report
-    steps:
-      - uses: actions/download-artifact@v4
+      - name: Send Email with Trivy Report
+        uses: dawidd6/action-send-mail@v3
         with:
-          name: staticwebsite-tar
-
-      - name: Log in to GitHub Container Registry
-        run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Tag and Push Docker image
-        run: |
-          docker load < staticwebsite.tar
-          REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          docker tag $APP_NAME ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
-          docker push ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
+          server_address: smtp.gmail.com  # SMTP server for Gmail
+          server_port: 587  # Port for Gmail SMTP
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Trivy Vulnerability Scan Report"
+          body: "Please find the attached Trivy vulnerability scan report for the Docker image."
+          to: ${{ secrets.RECIPIENT_EMAIL }}
+          from: ${{ secrets.SMTP_USERNAME }}
+          attachments: trivy-report.json
