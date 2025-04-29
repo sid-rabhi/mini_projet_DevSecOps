@@ -11,7 +11,7 @@ Portfolio : https://www.sid-rabhi.fr/
 # Mini-projet Github action
 
 ![pipeline ci/cd](images/CICD.png "pipeline ci/cd")
-[![Quality Gate Status](http://http://3.90.200.123:9000/api/project_badges/measure?project=staticwebsite&metric=alert_status&token=sqb_c8012d0b04c802d966e1d41429109053383e913a)](http://54.90.204.81:9000/dashboard?id=staticwebsite)
+[![Quality Gate Status](http://3.90.200.123:9000/api/project_badges/measure?project=staticwebsite&metric=alert_status&token=sqb_c8012d0b04c802d966e1d41429109053383e913a)](http://3.90.200.123:9000/dashboard?id=staticwebsite)
 Dans ce projet, j'ai conteneurisé un site web statique disponible sur mon Github sous le lien https://github.com/sid-rabhi/static-website-example/ et j'ai mis en place un pipeline de CI/CD sur mon GitLab https://gitlab.com/sid-rabhi/staticwebsite pour automatiser les étapes de construction, de test et de déploiement de l'application sur Heroku. Ce rapport explique les étapes du pipeline que vous trouverez dans le fichier `.gitlab-ci.yml`, et les avantages de cette approche.
 
 ---
