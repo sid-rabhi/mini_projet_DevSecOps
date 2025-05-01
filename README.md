@@ -7,6 +7,10 @@
 
 ---
 
+# Mini-projet DevSecOps
+
+![pipeline ci/cd](images/CICD.png "pipeline ci/cd")
+
 ## Aperçu du Pipeline CI/CD
 
 ![pipeline ci/cd](images/pipeline.png "pipeline ci/cd")
