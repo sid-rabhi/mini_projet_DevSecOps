@@ -1,92 +1,88 @@
-Auteur : Sid Ahmed Rabhi
+# Static Website CI/CD Pipeline
 
-Date : 06 janvier 2024
-
-LinkedIn : https://www.linkedin.com/in/sid-ahmed-rabhi/
-
-Portfolio : https://www.sid-rabhi.fr/
-
----
-
-# Mini-projet Github action
-
-![pipeline ci/cd](images/CICD.png "pipeline ci/cd")
-[![Quality Gate Status](http://3.90.200.123:9000/api/project_badges/measure?project=staticwebsite&metric=alert_status&token=sqb_c8012d0b04c802d966e1d41429109053383e913a)](http://3.90.200.123:9000/dashboard?id=staticwebsite)
-Dans ce projet, j'ai conteneurisé un site web statique disponible sur mon Github sous le lien https://github.com/sid-rabhi/static-website-example/ et j'ai mis en place un pipeline de CI/CD sur mon GitLab https://gitlab.com/sid-rabhi/staticwebsite pour automatiser les étapes de construction, de test et de déploiement de l'application sur Heroku. Ce rapport explique les étapes du pipeline que vous trouverez dans le fichier `.gitlab-ci.yml`, et les avantages de cette approche.
+**Auteur**: Sid Ahmed Rabhi  
+**Date**: 06 janvier 2024  
+**LinkedIn**: [Sid Ahmed Rabhi](https://www.linkedin.com/in/sid-ahmed-rabhi/)  
+**Portfolio**: [Sid Rabhi Portfolio](https://www.sid-rabhi.fr/)
 
 ---
 
-## Aperçu du pipeline CI/CD
+## Aperçu du Pipeline CI/CD
 
 ![pipeline ci/cd](images/pipeline.png "pipeline ci/cd")
 
+---
+
 ## Workflow du Pipeline CI/CD avec Conditions d'Exécution
 
-1. **Build image**
-   - *Condition* : S'exécute pour chaque commit.
-   - Build l'image Docker en utilisant le Dockerfile que j'ai créé.
-   - Enregistre l'image dans un artefact sous le nom `staticwebsite.tar`
-   
-2. **Acceptance test**
-   - *Condition* : S'exécute pour chaque commit.
-   - Charge l'image à partir de l'artefact `staticwebsite.tar`, puis exécute le conteneur.
-   - Teste l'application en effectuant un curl.
+1. **Checkout Code**
+   - *Condition*: S'exécute à chaque `push` ou `pull_request` sur la branche `main`.
+   - Télécharge le code source depuis GitHub pour le traitement ultérieur.
 
-3. **Release image**
-   - *Condition* : S'exécute pour chaque commit.
-   - Publie l'image Docker dans le registre de GitLab.
-   - Charge l'image à partir de l'artefact `staticwebsite.tar`, puis la tag avec le nom de la branche et le commit SHA.
-   - Pousse l'image dans le registre de GitLab pour garder une trace des images pour chaque commit et branche.
+2. **SonarQube Quality Scan**
+   - *Condition*: S'exécute après le `checkout`.
+   - Vérifie la connectivité avec le serveur **SonarQube** en utilisant `curl` pour garantir l'accessibilité du serveur avant de commencer l'analyse.
+   - Lance ensuite l'**analyse SonarQube** avec **SonarQube Scanner** pour détecter les bugs, vulnérabilités et mauvaises pratiques dans le projet.
+   - Les résultats de l'analyse de qualité du code sont envoyés à **SonarQube** pour un rapport détaillé.
 
-4. **Deploy review**
-   - *Condition* : S'exécute pour chaque nouvelle merge request ou mise à jour d'une merge request existante.
-   
-   
-5. **Stop review**
-   - *Condition* : S'exécute lorsqu'une merge request est fermée ou acceptée.
-   
+3. **Build Docker Image**
+   - *Condition*: S'exécute après l'analyse SonarQube.
+   - Construit une image Docker à partir du `Dockerfile` et la sauvegarde sous le nom `staticwebsite.tar`.
+   - Cette image sera utilisée pour tester et déployer l'application dans les environnements suivants.
 
-6. **Deploy staging**
-   - *Condition* : S'exécute lorsqu'un commit est poussé sur la branche `main`.
-   - Déploie l'application dans un environnement de préproduction (staging) sur Heroku.
-   
-7. **Test staging**
-   - *Condition* : S'exécute après le déploiement réussi dans l'environnement de préproduction.
-   - Exécute un curl sur l'environnement de préproduction pour s'assurer que l'application fonctionne correctement.
-   
-8. **Deploy prod**
-   - *Condition* : S'exécute lorsqu'un commit est poussé sur la branche `main`.
-   - Déploie l'application dans l'environnement de production sur Heroku.
-   
-9. **Test prod**
-   - *Condition* : S'exécute après le déploiement réussi dans l'environnement de production.
-   - Exécute un curl sur l'environnement de production pour garantir le bon fonctionnement de l'application.
+4. **Trivy Scan**
+   - *Condition*: S'exécute après la construction de l'image Docker.
+   - Effectue une analyse de sécurité de l'image Docker à l'aide de **Trivy**.
+   - Les résultats de l'analyse des vulnérabilités sont stockés dans un fichier JSON `trivy-report.json` et téléchargés en tant qu'artefact.
 
+5. **Acceptance Test**
+   - *Condition*: S'exécute après l'analyse Trivy.
+   - Lance un conteneur Docker à partir de l'image construite pour effectuer un test d'acceptation en effectuant un `curl` sur l'application déployée.
 
+6. **Release Image**
+   - *Condition*: S'exécute après le test d'acceptation.
+   - Se connecte au registre GitHub Container Registry et pousse l'image Docker avec le tag du commit (`$GITHUB_SHA`), pour garder une trace des versions.
 
-## Aperçu des environements sur Heroku
+7. **Send Email Report**
+   - *Condition*: S'exécute après la publication de l'image.
+   - Envoie un rapport des vulnérabilités détectées par Trivy à l'adresse email spécifiée. Le rapport est attaché sous forme de fichier JSON.
 
+8. **Deploy to EC2**
+   - *Condition*: S'exécute après l'envoi du rapport par email.
+   - Utilise **SCP** pour copier l'image Docker sur une instance EC2.
+   - Déploie l'application sur EC2 en arrêtant et en supprimant les anciens conteneurs, puis en chargeant et exécutant le nouveau conteneur avec l'image Docker mise à jour.
 
+---
+
+## Aperçu des Environnements
+
+L'application est déployée dans un environnement de production sur une instance **EC2** après avoir été testée, analysée pour les vulnérabilités, et validée par des tests d'acceptation.
 
 ![webapp](images/heroku.png "webapp")
 
+---
 
-
-## Aperçu du site
-
-
+## Aperçu du Site
 
 ![webapp](images/website.png "webapp")
 
+---
 
+## Technologies Utilisées
 
+- **Docker**: Utilisé pour encapsuler l'application dans des conteneurs afin de simplifier le processus de déploiement.
+- **GitHub Actions CI/CD**: Automatisation des processus de création, de test, et de déploiement.
+- **SonarQube**: Analyse de la qualité du code pour détecter les vulnérabilités, les bugs et les mauvaises pratiques.
+- **Trivy**: Outil d'analyse de sécurité des images Docker pour détecter les vulnérabilités critiques.
+- **GitHub Container Registry**: Stockage des images Docker pour les versions de l'application.
+- **SCP & SSH**: Utilisés pour transférer et déployer l'image Docker sur EC2.
+- **Email Notification**: Envoi de rapports de vulnérabilités par email après l'analyse Trivy.
 
-## Technologies utilisées
-
-- L'utilisation de **Docker** vise à encapsuler l'application en conteneurs afin de simplifier son déploiement.
-- **GitLab CI/CD** est employé pour automatiser les phases de création, de vérification et de déploiement de l'application.
-- **Heroku** est utilisé comme plateforme d'hébergement pour déployer l'application dans divers environnements tels que la préproduction et la production.
+---
 
 ## Conclusion
 
-En établissant ce flux CI/CD pour cet exemple de site web statique, j'ai automatisé les étapes de création, de test et de déploiement, assurant ainsi que l'application est vérifiée et opérationnelle avant son déploiement en production. L'intégration de Docker et de GitLab CI/CD a simplifié la gestion des environnements et des déploiements, fournissant une méthode fiable et efficace pour mettre à jour et maintenir l'application.
+Avec l'intégration de **SonarQube** pour la qualité du code, **Trivy** pour l'analyse de sécurité et **Docker** pour la conteneurisation, ce pipeline CI/CD offre un processus complet pour la création, le test, la validation et le déploiement de l'application. L'automatisation de ces étapes assure que l'application est prête pour la production de manière fiable et sécurisée.
+
+---
+
