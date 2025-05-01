@@ -163,7 +163,7 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "✅ staticwebsite Deployment & Security Report"
+          subject: "✅ staticwebsite Deployment & Security Report ✅"
           body: |
             Deployment to EC2 completed successfully.
 
