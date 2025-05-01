@@ -1,10 +1,12 @@
-name: StaticWebsite CI/CD Pipeline
+name: staticwebsite CI/CD pipeline
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - "main"
   pull_request:
-    branches: ["main"]
+    branches:
+      - "main"
   workflow_dispatch:
 
 env:
@@ -26,7 +28,8 @@ jobs:
       - name: Test connection to SonarQube
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        run: curl -v $SONAR_HOST_URL
+        run: |
+          curl -v $SONAR_HOST_URL
 
   run-sonarscanner:
     runs-on: ubuntu-latest
@@ -87,7 +90,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: staticwebsite-tar
-      - name: Load Docker image and run container
+      - name: Load and run container
         run: |
           docker load < staticwebsite.tar
           docker run -d -p $APP_EXPOSED_PORT:$APP_CONTAINER_PORT --env PORT=$APP_CONTAINER_PORT --name webapp $APP_NAME
@@ -101,9 +104,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: staticwebsite-tar
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GHCR
         run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Tag and push Docker image
+      - name: Tag and push image
         run: |
           docker load < staticwebsite.tar
           REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
@@ -115,8 +118,7 @@ jobs:
     needs: release-image
     steps:
       - uses: actions/checkout@v4
-      - name: Download Trivy Report
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: trivy-report
       - name: Send Email with Trivy Report
@@ -132,7 +134,8 @@ jobs:
           from: ${{ secrets.SMTP_USERNAME }}
           attachments: trivy-report.json
 
-  deploy-ec2:
+  deploy-to-ec2:
+    name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: send-email-report
     steps:
@@ -140,23 +143,24 @@ jobs:
         with:
           name: staticwebsite-tar
 
-      - name: Copy Docker image to EC2
+      - name: Copy image to EC2
         uses: appleboy/scp-action@v0.1.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_KEY }}
-          source: "staticwebsite.tar"
-          target: "/home/ec2-user"
+          source: staticwebsite.tar
+          target: ~/staticwebsite.tar
 
-      - name: Deploy on EC2
-        uses: appleboy/ssh-action@v1.0.3
+      - name: SSH Deploy and Cleanup
+        uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_KEY }}
           script: |
-            docker load < staticwebsite.tar
             docker stop webapp || true
             docker rm webapp || true
+            docker rmi staticwebsite || true
+            docker load < ~/staticwebsite.tar
             docker run -d -p 80:80 --name webapp staticwebsite
