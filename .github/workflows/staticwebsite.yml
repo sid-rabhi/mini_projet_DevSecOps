@@ -1,12 +1,10 @@
-name: DevSecOps CI Pipeline
+name: DevSecOps CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - "main"
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - "main"
+    branches: [ "main" ]
   workflow_dispatch:
 
 env:
@@ -22,7 +20,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-  # 2. Code Quality Scan (SonarQube)
+  # 2. SonarQube Scan
   test-sonarqube-connection:
     runs-on: ubuntu-latest
     needs: checkout
@@ -30,15 +28,13 @@ jobs:
       - name: Test connection to SonarQube
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        run: |
-          curl -v $SONAR_HOST_URL
+        run: curl -v $SONAR_HOST_URL
 
   run-sonarscanner:
     runs-on: ubuntu-latest
     needs: test-sonarqube-connection
     steps:
       - uses: actions/checkout@v4
-
       - name: Run SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5.0.0
         with:
@@ -49,106 +45,97 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # 3. Build Docker Image
+  # 3. Build Docker image
   build-image:
     runs-on: ubuntu-latest
     needs: run-sonarscanner
     steps:
       - uses: actions/checkout@v4
-
       - name: Build Docker image
         run: |
           docker build -t $APP_NAME .
-          docker save $APP_NAME > $APP_NAME.tar
-
+          docker tag $APP_NAME ghcr.io/${{ github.repository }}:latest
+          docker save ghcr.io/${{ github.repository }}:latest > image.tar
       - uses: actions/upload-artifact@v4
         with:
-          name: staticwebsite-tar
-          path: staticwebsite.tar
+          name: image-tar
+          path: image.tar
 
-  # 4. Security Scan with Trivy
+  # 4. Trivy scan
   trivy-scan:
     runs-on: ubuntu-latest
     needs: build-image
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: staticwebsite-tar
-
+          name: image-tar
       - name: Install Trivy
         run: |
-          curl -sfL -o /tmp/trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.45.0/trivy_0.45.0_Linux-64bit.tar.gz
-          tar xz -C /usr/local/bin -f /tmp/trivy.tar.gz
+          curl -sfL -o trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.45.0/trivy_0.45.0_Linux-64bit.tar.gz
+          tar xz -C /usr/local/bin -f trivy.tar.gz
           trivy --version
-
-      - name: Scan Docker image with Trivy
+      - name: Run Trivy Scan
         run: |
-          docker load < staticwebsite.tar
-          trivy image --exit-code 1 --severity HIGH,CRITICAL --format json -o trivy-report.json $APP_NAME || echo "Trivy scan completed with vulnerabilities"
+          docker load < image.tar
+          trivy image --exit-code 1 --severity HIGH,CRITICAL --format json -o trivy-report.json ghcr.io/${{ github.repository }}:latest || echo "Trivy found issues"
         continue-on-error: true
-
       - name: Upload Trivy Report
         uses: actions/upload-artifact@v4
         with:
           name: trivy-report
           path: trivy-report.json
 
-  # 5. Acceptance Testing
+  # 5. Acceptance test
   acceptance-test:
     runs-on: ubuntu-latest
     needs: trivy-scan
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: staticwebsite-tar
-
-      - name: Load Docker image and run container
+          name: image-tar
+      - name: Run container and test
         run: |
-          docker load < staticwebsite.tar
-          docker run -d -p $APP_EXPOSED_PORT:$APP_CONTAINER_PORT --env PORT=$APP_CONTAINER_PORT --name webapp $APP_NAME
+          docker load < image.tar
+          docker run -d -p $APP_EXPOSED_PORT:$APP_CONTAINER_PORT --name webapp ghcr.io/${{ github.repository }}:latest
           sleep 5
-          curl http://localhost:$APP_CONTAINER_PORT | grep -i "Dimension"
+          curl http://localhost:$APP_EXPOSED_PORT | grep -i "Dimension"
 
-  # 6. Release / Push to GitHub Container Registry
+  # 6. Push to GHCR
   release-image:
     runs-on: ubuntu-latest
     needs: acceptance-test
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: staticwebsite-tar
-
-      - name: Log in to GitHub Container Registry
+          name: image-tar
+      - name: Log in to GHCR
         run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Tag and push Docker image
+      - name: Push Docker image
         run: |
-          docker load < staticwebsite.tar
-          REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          docker tag $APP_NAME ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
-          docker push ghcr.io/$REPO_LOWERCASE:$GITHUB_SHA
+          docker load < image.tar
+          docker push ghcr.io/${{ github.repository }}:latest
 
-  # 7. Email Trivy Report
-  send-email-report:
+  # 7. Deploy to EC2 via SSH
+  deploy-to-ec2:
     runs-on: ubuntu-latest
     needs: release-image
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download Trivy Report
-        uses: actions/download-artifact@v4
-        with:
-          name: trivy-report
-
-      - name: Send Email with Trivy Report
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Trivy Vulnerability Scan Report"
-          body: "Please find the attached Trivy vulnerability scan report for the Docker image."
-          to: ${{ secrets.RECIPIENT_EMAIL }}
-          from: ${{ secrets.SMTP_USERNAME }}
-          attachments: trivy-report.json
+      - name: Install SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      - name: Deploy to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            export GHCR_USER=${{ secrets.GHCR_USER }}
+            export GHCR_TOKEN=${{ secrets.GHCR_TOKEN }}
+            IMAGE="ghcr.io/${{ github.repository }}:latest"
+            CONTAINER_NAME="webapp"
+            echo $GHCR_TOKEN | docker login ghcr.io -u $GHCR_USER --password-stdin
+            docker pull $IMAGE
+            docker stop $CONTAINER_NAME || true
+            docker rm $CONTAINER_NAME || true
+            docker run -d --name $CONTAINER_NAME -p 80:80 $IMAGE
+          EOF
