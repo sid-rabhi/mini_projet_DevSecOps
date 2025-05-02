@@ -17,7 +17,7 @@
 
 ---
 
-## Workflow du Pipeline CI/CD avec Conditions d'Exécution
+## Workflow d Pipeline CI/CD avec Conditions d'Exécution
 
 1. **Checkout Code**
    - *Condition*: S'exécute à chaque `push` ou `pull_request` sur la branche `main`.
